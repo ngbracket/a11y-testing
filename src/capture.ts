@@ -1,14 +1,5 @@
 import { recordAnnouncements } from './announcements.js';
-
-/**
- * A component fixture we can wait on. Typed structurally so this package needs no
- * hard dependency on `@angular/core/testing` — a real `ComponentFixture`
- * satisfies it, but so does anything with `whenStable()`.
- */
-export interface AngularFixtureLike {
-  whenStable(): Promise<unknown>;
-  readonly nativeElement?: Element;
-}
+import type { AngularFixtureLike } from './fixture.js';
 
 export interface CaptureOptions {
   /**
@@ -34,7 +25,7 @@ export interface CaptureOptions {
  */
 export async function captureAnnouncements(
   fixture: AngularFixtureLike,
-  action: () => void | Promise<void>,
+  action: () => unknown,
   options: CaptureOptions = {},
 ): Promise<string[]> {
   const recorder = recordAnnouncements(document);
