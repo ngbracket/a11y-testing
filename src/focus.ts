@@ -6,8 +6,8 @@
  */
 import { formatDescription } from './describe.js';
 import { settle, type AngularFixtureLike } from './fixture.js';
-import { shiftTab, tab } from './keyboard.js';
-import { isFocusSentinel, isHidden, tabOrder } from './tab-order.js';
+import { tabStep } from './keyboard.js';
+import { isFocusSentinel, isHidden, sameRadioGroup, tabOrder } from './tab-order.js';
 
 export interface FocusCheckOptions {
   /** Settle this fixture after each step, so the DOM shows the result. */
@@ -90,14 +90,24 @@ export async function checkFocusTrapped(
     await step(options);
   }
 
-  for (const [direction, move] of [
-    ['Tab', tab],
-    ['Shift+Tab', shiftTab],
+  for (const [direction, backward] of [
+    ['Tab', false],
+    ['Shift+Tab', true],
   ] as const) {
     const visited = new Set<Element>();
     for (let i = 0; i <= stops.length; i++) {
       const from = document.activeElement;
-      const to = await move(options);
+      const { to, wrapped } = await tabStep(backward, options);
+      if (wrapped) {
+        // A browser would leave the page here. The container held the only stops
+        // on it, so wrapping back inside isn't evidence of a trap.
+        return {
+          pass: false,
+          message:
+            `${direction} from ${where(from)} went past the ${backward ? 'first' : 'last'} stop on the page, ` +
+            'so in a browser focus would leave the page. Nothing kept it inside the container.',
+        };
+      }
       if (!to || !container.contains(to)) {
         const hint =
           to && isFocusSentinel(to)
@@ -111,7 +121,7 @@ export async function checkFocusTrapped(
       }
       visited.add(to);
     }
-    const missed = stops.filter((s) => !visited.has(s));
+    const missed = stops.filter((s) => ![...visited].some((v) => v === s || sameRadioGroup(v, s)));
     if (missed.length > 0) {
       return {
         pass: false,

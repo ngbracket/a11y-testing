@@ -1,3 +1,5 @@
+import { defaultIsVisible } from './tab-order.js';
+
 /**
  * jsdom has no layout: every element's `offsetWidth` and `offsetHeight` are 0.
  * The CDK's `InteractivityChecker` reads those to decide whether an element is
@@ -18,18 +20,15 @@ export function stubLayout(): () => void {
 
   const size = function (this: HTMLElement): number {
     if (!this.isConnected) return 0;
-    const view = this.ownerDocument.defaultView;
-    for (let node: Element | null = this; node; node = node.parentElement) {
-      const style = view?.getComputedStyle(node);
-      if (style?.display === 'none') return 0;
-      if (style?.visibility === 'hidden' || style?.visibility === 'collapse') return 0;
-    }
-    return 1;
+    return defaultIsVisible(this) ? 1 : 0;
   };
   Object.defineProperty(proto, 'offsetWidth', { configurable: true, get: size });
   Object.defineProperty(proto, 'offsetHeight', { configurable: true, get: size });
 
+  let restored = false;
   return () => {
+    if (restored) return;
+    restored = true;
     for (const [prop, descriptor] of Object.entries(originals)) {
       if (descriptor) Object.defineProperty(proto, prop, descriptor);
       else delete (proto as unknown as Record<string, unknown>)[prop];

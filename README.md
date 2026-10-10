@@ -15,8 +15,10 @@ expect(tabWalkthrough(fixture)).toMatchInlineSnapshot();
 
 Part of the `@ngbracket` Angular accessibility tooling, alongside
 [`@ngbracket/a11y-devtools`](https://github.com/ngbracket/a11y-devtools). Which
-elements Tab reaches, and the role, name and state text, follow the same rules as
-the devtools walkthrough.
+elements count as tab stops, and the role, name and state text, follow the same
+rules as the devtools walkthrough. One difference: while a dialog is open, the
+devtools lists only the dialog's stops, while `tab()` lets the page's own focus
+trap keep focus in.
 
 ## Install
 
@@ -54,7 +56,8 @@ await press(grid, 'Home', { fixture }); // settles the fixture afterwards
 Key names are `KeyboardEvent.key` values (`Enter`, `Escape`, `ArrowDown`, `a`,
 `F10`). `Space`, `Esc`, `Ctrl` and `Cmd` work as aliases.
 
-When no handler cancels the `keydown`, `press()` also does what the browser would:
+When `target` has focus and no handler cancels the `keydown`, `press()` also does
+what the browser would:
 
 | Key | Default action |
 |---|---|
@@ -62,16 +65,21 @@ When no handler cancels the `keydown`, `press()` also does what the browser woul
 | Enter | Clicks a native button, link or `<summary>` |
 | Space | Clicks a native button, checkbox, radio or `<summary>` (on `keyup`) |
 
-A `<div role="button">` gets no default action, as in a browser. If it has no key
-handler of its own, pressing Enter on it does nothing and your test fails.
+A browser sends keys to the focused element, so the default actions need focus.
+If focus was lost, pressing Enter on a button clicks nothing and your test fails.
+A `<div role="button">` gets no default action either, as in a browser. If it has
+no key handler of its own, pressing Enter on it does nothing.
+
+Two browser behaviours aren't emulated: Enter in a text field doesn't submit the
+form, and Shift with a digit or punctuation key keeps the unshifted `key`.
 
 ### `tab(options?)` and `shiftTab(options?)`
 
 Press Tab or Shift+Tab on the focused element and return the element that has focus
 afterwards. Focus moves through the real tab order: positive `tabindex` first, then
 DOM order, skipping disabled, `inert`, `hidden`, `display: none` and closed
-`<details>` content. Past the last stop a browser leaves the page; here focus wraps
-to the first stop.
+`<details>` content. A named radio group is one stop. Past the last stop a browser
+leaves the page; here focus wraps to the first stop.
 
 Focus-trap sentinels, such as the CDK's `cdk-focus-trap-anchor`, count as stops.
 The browser lands on them and the trap sends focus on, so a real trap's own code
@@ -103,7 +111,9 @@ Focus didn't return to button "Actions". It's on the page body (focus was lost).
 
 Presses Tab, then Shift+Tab, enough times to go round `container` once in each
 direction. It throws if focus leaves the container or never reaches one of its
-stops. `checkFocusTrapped()` returns `{ pass, message }` instead of throwing, and
+stops. It also throws if Tab goes past the last stop on the page: in a fixture that
+holds only a dialog, focus wrapping back to the start doesn't mean anything trapped
+it. `checkFocusTrapped()` returns `{ pass, message }` instead of throwing, and
 the `toBeFocusTrapped()` matcher wraps it:
 
 ```ts
@@ -147,7 +157,8 @@ expect(activeDescendant(combobox)?.textContent).toBe('Paris');
 ### `describeElement(el)`
 
 Returns the computed `role`, accessible `name`, `description` and `states` of an
-element. Role and name come from axe-core's accessible-name code.
+element. Role and name come from axe-core's accessible-name code. axe-core is a
+dependency of this package, about 1 MB, loaded when you import it.
 
 ```ts
 expect(describeElement(sortButton)).toEqual({

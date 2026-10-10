@@ -3,7 +3,8 @@
  * `@ngbracket/a11y-devtools` (src/keyboard/tab-sequence.ts) so a test and the
  * devtools overlay agree about the same page: positive `tabindex` first, in
  * ascending order, then `tabindex="0"` and native stops in DOM order. Disabled,
- * `inert`, `hidden` and closed-`<details>` content is skipped.
+ * `inert`, `hidden` and closed-`<details>` content is skipped, and a named radio
+ * group is one stop.
  */
 
 /** Elements that can hold focus and so may appear in the tab order. */
@@ -103,13 +104,18 @@ function isStructurallyHidden(element: Element): boolean {
   return false;
 }
 
-function defaultIsVisible(element: Element): boolean {
+/**
+ * `display: none` on any ancestor hides an element. `visibility` inherits, and a
+ * `visibility: visible` child of a hidden parent is shown, so only the element's
+ * own computed value counts.
+ */
+export function defaultIsVisible(element: Element): boolean {
   const view = element.ownerDocument?.defaultView;
   if (!view?.getComputedStyle) return true;
+  const visibility = view.getComputedStyle(element).visibility;
+  if (visibility === 'hidden' || visibility === 'collapse') return false;
   for (let node: Element | null = element; node; node = node.parentElement) {
-    const style = view.getComputedStyle(node);
-    if (style.display === 'none') return false;
-    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+    if (view.getComputedStyle(node).display === 'none') return false;
   }
   return true;
 }
@@ -131,11 +137,41 @@ export function isTabbable(element: Element, isVisible: (el: Element) => boolean
   return isVisible(element);
 }
 
+function isNamedRadio(el: Element): el is HTMLInputElement {
+  return el instanceof HTMLInputElement && el.type === 'radio' && el.name !== '';
+}
+
+/** True when `a` and `b` are radios in the same named group. */
+export function sameRadioGroup(a: Element, b: Element): boolean {
+  return isNamedRadio(a) && isNamedRadio(b) && a.name === b.name && a.form === b.form;
+}
+
+/**
+ * A named radio group is one tab stop: the checked radio, or the first one when
+ * none is checked. (Going backwards with none checked, the browser stops on the
+ * last radio; `tab()` handles that.)
+ */
+function collapseRadioGroups(elements: Element[]): Element[] {
+  return elements.filter((el) => {
+    if (!isNamedRadio(el)) return true;
+    const group = elements.filter((other) => sameRadioGroup(el, other));
+    const checked = group.find((r) => (r as HTMLInputElement).checked);
+    return el === (checked ?? group[0]);
+  });
+}
+
+/** The tabbable radios in `radio`'s named group, in DOM order. */
+export function radioGroupOf(radio: Element, root: ParentNode = radio.ownerDocument ?? document): Element[] {
+  if (!isNamedRadio(radio)) return [radio];
+  return [...root.querySelectorAll('input[type="radio"]')].filter((r) => sameRadioGroup(radio, r) && isTabbable(r));
+}
+
 /** The elements Tab visits inside `root`, in the order the browser visits them. */
 export function tabOrder(root: ParentNode = document, options: TabOrderOptions = {}): Element[] {
   const isVisible = options.isVisible ?? defaultIsVisible;
   let candidates = [...root.querySelectorAll(FOCUSABLE_SELECTOR)].filter((el) => isTabbable(el, isVisible));
   if (!options.includeSentinels) candidates = candidates.filter((el) => !isFocusSentinel(el));
+  candidates = collapseRadioGroups(candidates);
 
   const withMeta = candidates.map((element, domIndex) => ({
     element,

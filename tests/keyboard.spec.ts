@@ -69,18 +69,34 @@ describe('press', () => {
     const click = vi.fn();
     $('#b').addEventListener('click', click);
 
+    $('#b').focus();
     await press($('#b'), 'Enter');
     await press($('#b'), ' ');
+    $('#c').focus();
     await press($('#c'), ' ');
 
     expect(click).toHaveBeenCalledTimes(2);
     expect($<HTMLInputElement>('#c').checked).toBe(true);
   });
 
+  it('runs no default action on an element that does not have focus', async () => {
+    render('<button id="b">B</button><button id="other">Other</button>');
+    const click = vi.fn();
+    $('#b').addEventListener('click', click);
+    $('#other').focus();
+
+    await press($('#b'), 'Enter');
+    await press($('#b'), 'Tab');
+
+    expect(click).not.toHaveBeenCalled();
+    expect(document.activeElement?.id).toBe('other');
+  });
+
   it('does not activate a div with role="button": that needs its own key handler', async () => {
     render('<div id="d" role="button" tabindex="0">D</div>');
     const click = vi.fn();
     $('#d').addEventListener('click', click);
+    $('#d').focus();
 
     await press($('#d'), 'Enter');
     await press($('#d'), ' ');
@@ -93,6 +109,7 @@ describe('press', () => {
     const click = vi.fn();
     $('#b').addEventListener('click', click);
     $('#b').addEventListener('keydown', (e) => e.preventDefault());
+    $('#b').focus();
 
     await press($('#b'), 'Enter');
     await press($('#b'), ' ');
@@ -134,6 +151,28 @@ describe('tab and shiftTab', () => {
     expect((await tab())?.id).toBe('sum');
     expect((await tab())?.id).toBe('b');
     expect((await shiftTab())?.id).toBe('sum');
+  });
+
+  it('treats a named radio group as one stop: the checked radio, else first or last', async () => {
+    render(`
+      <button id="a">A</button>
+      <input type="radio" name="size" id="s"><input type="radio" name="size" id="m" checked><input type="radio" name="size" id="l">
+      <input type="radio" name="colour" id="red"><input type="radio" name="colour" id="blue">
+      <button id="z">Z</button>
+    `);
+    expect(tabOrder().map((el) => el.id)).toEqual(['a', 'm', 'red', 'z']);
+
+    $('#a').focus();
+    expect((await tab())?.id).toBe('m');
+    expect((await tab())?.id).toBe('red');
+    expect((await tab())?.id).toBe('z');
+    expect((await shiftTab())?.id).toBe('blue');
+    expect((await shiftTab())?.id).toBe('m');
+  });
+
+  it('counts a visibility: visible child of a hidden parent as shown', () => {
+    render('<div style="visibility: hidden"><button id="a">A</button><button id="b" style="visibility: visible">B</button></div>');
+    expect(tabOrder().map((el) => el.id)).toEqual(['b']);
   });
 
   it('puts positive tabindex first', () => {

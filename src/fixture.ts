@@ -1,7 +1,7 @@
 /**
  * A component fixture we can wait on. Typed structurally so this package needs no
- * hard dependency on `@angular/core/testing` — a real `ComponentFixture`
- * satisfies it, but so does anything with `whenStable()`.
+ * hard dependency on `@angular/core/testing`. A real `ComponentFixture`
+ * satisfies it, and so does anything with `whenStable()`.
  */
 export interface AngularFixtureLike {
   whenStable(): Promise<unknown>;

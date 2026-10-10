@@ -13,12 +13,11 @@ export interface CaptureOptions {
 /**
  * Run `action`, then return everything it announced.
  *
- * The value here is the zoneless-aware stabilization: under Angular's v21 default
- * (zoneless), a signal change schedules change detection asynchronously, so the
- * live region isn't updated until the fixture settles. We `whenStable()` after
- * the action so the announcement is actually in the DOM before we read it —
- * something a framework-agnostic axe wrapper does not do. Setup-time
- * announcements are cleared so only `action`'s output is returned.
+ * Under zoneless change detection (the Angular default since v21) a signal change
+ * renders on a later tick, so the live region isn't updated until the fixture
+ * settles. We call `whenStable()` after the action so the announcement is in the
+ * DOM before we read it. Setup-time announcements are cleared, so only
+ * `action`'s output is returned.
  *
  * The whole document is observed, not only the fixture: the CDK `LiveAnnouncer`
  * puts its live region on `<body>`, outside the component.

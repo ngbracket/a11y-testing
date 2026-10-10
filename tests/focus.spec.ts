@@ -85,6 +85,40 @@ describe('checkFocusTrapped / expectFocusTrapped', () => {
     await expect(expectFocusTrapped($('#dialog'))).rejects.toThrow(/never reached button "B"/);
   });
 
+  it('fails a container with no trap that holds the only stops on the page', async () => {
+    render('<div id="dialog"><button>A</button><button>B</button></div>');
+    const result = await checkFocusTrapped($('#dialog'));
+    expect(result.pass).toBe(false);
+    expect(result.message).toBe(
+      'Tab from button "B" went past the last stop on the page, so in a browser focus would leave the page. ' +
+        'Nothing kept it inside the container.',
+    );
+  });
+
+  it('counts a radio group as one stop', async () => {
+    render(`
+      <div id="dialog">
+        <button id="first">First</button>
+        <input type="radio" name="r" aria-label="One"><input type="radio" name="r" aria-label="Two">
+      </div>
+      <button>Behind</button>
+    `);
+    const stops = () => [...$('#dialog').querySelectorAll<HTMLElement>('button, input')];
+    $('#dialog').addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const active = document.activeElement as HTMLElement;
+      const last = stops()[stops().length - 1];
+      if (!e.shiftKey && (active as HTMLInputElement).type === 'radio') {
+        e.preventDefault();
+        stops()[0].focus();
+      } else if (e.shiftKey && active === stops()[0]) {
+        e.preventDefault();
+        last.focus();
+      }
+    });
+    await expectFocusTrapped($('#dialog'));
+  });
+
   it('fails a container with no tab stops', async () => {
     render('<div id="dialog"><p>Text</p></div>');
     await expect(expectFocusTrapped($('#dialog'))).rejects.toThrow(/no tab stops/);
@@ -136,6 +170,16 @@ describe('stubLayout', () => {
     const restore = stubLayout();
     expect([$('#a').offsetWidth, $('#b').offsetWidth, detached.offsetHeight]).toEqual([1, 0, 0]);
     restore();
+    expect($('#a').offsetWidth).toBe(0);
+  });
+
+  it('restores once: a second call does not reinstate an outer stub', () => {
+    render('<button id="a">A</button>');
+    const outer = stubLayout();
+    const inner = stubLayout();
+    inner();
+    outer();
+    inner();
     expect($('#a').offsetWidth).toBe(0);
   });
 });

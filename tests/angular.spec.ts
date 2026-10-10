@@ -108,6 +108,7 @@ describe('with Angular and the CDK', () => {
     const fixture = TestBed.createComponent(Counter);
     await settle(fixture);
     const button = fixture.nativeElement.querySelector('button') as HTMLElement;
+    button.focus();
 
     await press(button, 'Enter', { fixture });
 
@@ -166,6 +167,7 @@ describe('with Angular and the CDK', () => {
   it('captures a LiveAnnouncer message', async () => {
     const fixture = TestBed.createComponent(AnnouncerHost);
     const button = fixture.nativeElement.querySelector('button') as HTMLElement;
+    button.focus();
 
     const announced = await captureAnnouncements(fixture, () => press(button, 'Enter'));
 

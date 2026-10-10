@@ -1,13 +1,13 @@
 /**
  * Keyboard input for TestBed specs: one `press()` that fills in `key`, `code`
  * and `keyCode` (the CDK still switches on `keyCode`), carries modifiers, and
- * does what the browser would do when no handler cancels the event: Tab moves
- * focus, Enter activates a native button or link, Space activates a native
- * button, checkbox or radio. A `<div role="button">` gets no default action,
+ * does what the browser would do when the target has focus and no handler
+ * cancels the event: Tab moves focus, Enter activates a native button or link,
+ * Space activates a native button, checkbox or radio. A `<div role="button">` gets no default action,
  * just as in a browser, so a missing key handler shows up as a failing test.
  */
 import { settle, type AngularFixtureLike } from './fixture.js';
-import { tabOrder } from './tab-order.js';
+import { radioGroupOf, sameRadioGroup, tabOrder } from './tab-order.js';
 
 export interface PressOptions {
   /** Settle this fixture after the key press, so the DOM shows the result. */
@@ -146,9 +146,10 @@ function isEnabled(el: Element): boolean {
  * Press a key or key combination on `target` (default: the focused element) and
  * return the `keydown` event, so a test can check `defaultPrevented`.
  *
- * Dispatches `keydown` then `keyup`. Unless a handler cancels the event, it then
- * does the browser's default action for Tab, Enter and Space (see the module
- * comment). Tab starts from `target`, as it would from the focused element.
+ * Dispatches `keydown` then `keyup`. When `target` has focus and no handler
+ * cancels the event, it then does the browser's default action for Tab, Enter
+ * and Space (see the module comment). A browser sends keys to the focused
+ * element, so pressing Enter on a button that has lost focus clicks nothing.
  */
 export async function press(target: Element, keys: string, options?: PressOptions): Promise<KeyboardEvent>;
 export async function press(keys: string, options?: PressOptions): Promise<KeyboardEvent>;
@@ -161,24 +162,37 @@ export async function press(
   const target = explicitTarget ? targetOrKeys : (document.activeElement ?? document.body);
   const keys = explicitTarget ? (keysOrOptions as string) : targetOrKeys;
   const options = (explicitTarget ? maybeOptions : (keysOrOptions as PressOptions | undefined)) ?? {};
+  return (await dispatchPress(target, keys, options)).event;
+}
 
+interface PressResult {
+  event: KeyboardEvent;
+  /** Tab went past the last (or first) stop on the page, where a browser leaves the page. */
+  wrapped: boolean;
+}
+
+async function dispatchPress(target: Element, keys: string, options: PressOptions): Promise<PressResult> {
   const combo = parseCombo(keys);
+  const focused = target === (target.ownerDocument ?? document).activeElement;
   const down = keyboardEvent('keydown', combo);
   target.dispatchEvent(down);
   const plain = !combo.ctrlKey && !combo.altKey && !combo.metaKey;
+  const isTab = combo.info.key === 'Tab' && plain;
+  let wrapped = false;
 
-  if (!down.defaultPrevented) {
-    if (combo.info.key === 'Tab' && plain) moveFocus(target, combo.shiftKey);
+  if (focused && !down.defaultPrevented) {
+    if (isTab) wrapped = moveFocus(target, combo.shiftKey);
     else if (combo.info.key === 'Enter' && plain && target.matches(ENTER_ACTIVATES) && isEnabled(target)) {
       (target as HTMLElement).click();
     }
   }
 
   // keyup goes wherever focus is now: after Tab, that's the new element.
-  const upTarget = combo.info.key === 'Tab' && !down.defaultPrevented ? (document.activeElement ?? target) : target;
+  const upTarget = isTab ? (document.activeElement ?? target) : target;
   const up = keyboardEvent('keyup', combo);
   upTarget.dispatchEvent(up);
   if (
+    focused &&
     combo.info.key === ' ' &&
     plain &&
     !down.defaultPrevented &&
@@ -191,45 +205,64 @@ export async function press(
 
   if (options.fixture) await settle(options.fixture);
   else await Promise.resolve(); // let microtask focus moves (CDK menus) land
-  return down;
+  return { event: down, wrapped };
 }
 
 /** Press Tab on the focused element and return the element focus lands on. */
 export async function tab(options?: PressOptions): Promise<Element | null> {
-  await press('Tab', options);
-  return document.activeElement;
+  return (await tabStep(false, options)).to;
 }
 
 /** Press Shift+Tab on the focused element and return the element focus lands on. */
 export async function shiftTab(options?: PressOptions): Promise<Element | null> {
-  await press('Shift+Tab', options);
-  return document.activeElement;
+  return (await tabStep(true, options)).to;
+}
+
+/** Tab or Shift+Tab, saying whether focus wrapped round the page. Internal. */
+export async function tabStep(
+  backward: boolean,
+  options: PressOptions = {},
+): Promise<{ to: Element | null; wrapped: boolean }> {
+  const { wrapped } = await dispatchPress(document.activeElement ?? document.body, backward ? 'Shift+Tab' : 'Tab', options);
+  return { to: document.activeElement, wrapped };
 }
 
 /**
  * Tab's default action: focus the next (or previous) stop after `from`. Focus-trap
  * sentinels count as stops, because the browser lands on them and the trap's
  * focus listener moves focus on. Past the last stop a browser leaves the page;
- * here focus wraps to the first stop, which is what a test can observe.
+ * here focus wraps to the first stop, which is what a test can observe. Returns
+ * true when it wrapped.
  */
-function moveFocus(from: Element, backward: boolean): void {
+function moveFocus(from: Element, backward: boolean): boolean {
   const doc = from.ownerDocument ?? document;
   const order = tabOrder(doc, { includeSentinels: true });
-  if (order.length === 0) return;
+  if (order.length === 0) return false;
 
   let next: Element | undefined;
-  const index = order.indexOf(from);
+  let wrapped = false;
+  // A radio that isn't its group's stop (focused by script, say) stands for the group.
+  const current = order.includes(from) ? from : (order.find((el) => sameRadioGroup(el, from)) ?? from);
+  const index = order.indexOf(current);
   if (index !== -1) {
-    next = order[(index + (backward ? -1 : 1) + order.length) % order.length];
+    const target = index + (backward ? -1 : 1);
+    wrapped = target < 0 || target >= order.length;
+    next = order[(target + order.length) % order.length];
   } else if (from === doc.body || from === doc.documentElement) {
     next = backward ? order[order.length - 1] : order[0];
   } else {
     // Focus is on something outside the order (tabindex="-1", say): the browser
     // continues from its position in the document.
     const follows = (el: Element) => (from.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-    next = backward
-      ? ([...order].reverse().find((el) => !follows(el)) ?? order[order.length - 1])
-      : (order.find(follows) ?? order[0]);
+    const found = backward ? [...order].reverse().find((el) => !follows(el)) : order.find(follows);
+    wrapped = !found;
+    next = found ?? (backward ? order[order.length - 1] : order[0]);
+  }
+  // Entering a radio group with nothing checked backwards lands on its last radio.
+  if (backward && next instanceof HTMLInputElement && next.type === 'radio') {
+    const group = radioGroupOf(next);
+    if (!group.some((r) => (r as HTMLInputElement).checked)) next = group[group.length - 1];
   }
   (next as HTMLElement).focus();
+  return wrapped;
 }
