@@ -170,6 +170,17 @@ describe('tab and shiftTab', () => {
     expect((await shiftTab())?.id).toBe('m');
   });
 
+  it('Shift+Tab leaves a radio group from any radio in it', async () => {
+    render('<button id="a">A</button><input type="radio" name="g" id="r1"><input type="radio" name="g" id="r2"><button id="z">Z</button>');
+    $('#r2').focus();
+    expect((await shiftTab())?.id).toBe('a');
+  });
+
+  it('keeps radio groups in different forms apart', () => {
+    render('<form><input type="radio" name="g" id="f1"></form><form><input type="radio" name="g" id="f2"></form>');
+    expect(tabOrder().map((el) => el.id)).toEqual(['f1', 'f2']);
+  });
+
   it('counts a visibility: visible child of a hidden parent as shown', () => {
     render('<div style="visibility: hidden"><button id="a">A</button><button id="b" style="visibility: visible">B</button></div>');
     expect(tabOrder().map((el) => el.id)).toEqual(['b']);
@@ -198,6 +209,25 @@ describe('tab and shiftTab', () => {
     expect((await tab())?.id).toBe('b');
     $('#panel').focus();
     expect((await shiftTab())?.id).toBe('a');
+  });
+
+  it('moves on from where a keydown handler put focus, when it does not cancel Tab', async () => {
+    render('<button id="a">A</button><button id="b">B</button><button id="c">C</button>');
+    $('#a').addEventListener('keydown', () => $('#b').focus());
+    $('#a').focus();
+    expect((await tab())?.id).toBe('c');
+  });
+
+  it('presses on a focused element inside a shadow root', async () => {
+    const host = render('');
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<button>In shadow</button>';
+    const button = shadow.querySelector('button')!;
+    const click = vi.fn();
+    button.addEventListener('click', click);
+    button.focus();
+    await press(button, 'Enter');
+    expect(click).toHaveBeenCalledOnce();
   });
 
   it('leaves focus alone when a keydown handler cancels Tab', async () => {

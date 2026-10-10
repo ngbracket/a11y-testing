@@ -95,6 +95,41 @@ describe('checkFocusTrapped / expectFocusTrapped', () => {
     );
   });
 
+  it('passes a sentinel trap or a keydown trap that holds the only stops on the page', async () => {
+    render(`
+      <div class="anchor" tabindex="0" aria-hidden="true"></div>
+      <div id="dialog"><button id="a">A</button><button id="b">B</button></div>
+      <div class="anchor" tabindex="0" aria-hidden="true"></div>
+    `);
+    const [start, end] = document.querySelectorAll<HTMLElement>('.anchor');
+    end.addEventListener('focus', () => $('#a').focus());
+    start.addEventListener('focus', () => $('#b').focus());
+    await expectFocusTrapped($('#dialog'));
+
+    document.body.innerHTML = '';
+    render('<div id="dialog"><button id="a">A</button><button id="b">B</button></div>');
+    $('#dialog').addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const edge = e.shiftKey ? $('#a') : $('#b');
+      if (document.activeElement !== edge) return;
+      e.preventDefault();
+      (e.shiftKey ? $('#b') : $('#a')).focus();
+    });
+    await expectFocusTrapped($('#dialog'));
+  });
+
+  it('fails the Shift+Tab direction of an untrapped lone container', async () => {
+    render('<div id="dialog"><button>A</button><button>B</button></div>');
+    // Trap Tab only.
+    $('#dialog').addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.shiftKey && document.activeElement?.textContent === 'B') {
+        e.preventDefault();
+        ($('#dialog').firstElementChild as HTMLElement).focus();
+      }
+    });
+    await expect(expectFocusTrapped($('#dialog'))).rejects.toThrow('Shift+Tab from button "A" went past the first stop');
+  });
+
   it('counts a radio group as one stop', async () => {
     render(`
       <div id="dialog">

@@ -70,8 +70,9 @@ If focus was lost, pressing Enter on a button clicks nothing and your test fails
 A `<div role="button">` gets no default action either, as in a browser. If it has
 no key handler of its own, pressing Enter on it does nothing.
 
-Two browser behaviours aren't emulated: Enter in a text field doesn't submit the
-form, and Shift with a digit or punctuation key keeps the unshifted `key`.
+These browser behaviours aren't emulated: Enter in a text field doesn't submit the
+form, Shift with a digit or punctuation key keeps the unshifted `key`, and Tab
+doesn't move into or through shadow roots.
 
 ### `tab(options?)` and `shiftTab(options?)`
 

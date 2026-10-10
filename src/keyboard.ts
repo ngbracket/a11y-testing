@@ -173,7 +173,9 @@ interface PressResult {
 
 async function dispatchPress(target: Element, keys: string, options: PressOptions): Promise<PressResult> {
   const combo = parseCombo(keys);
-  const focused = target === (target.ownerDocument ?? document).activeElement;
+  // Compare with the target's own root, so a focused button in a shadow root counts.
+  const root = target.getRootNode() as Document | ShadowRoot;
+  const focused = target === root.activeElement || (target === document.body && !document.activeElement);
   const down = keyboardEvent('keydown', combo);
   target.dispatchEvent(down);
   const plain = !combo.ctrlKey && !combo.altKey && !combo.metaKey;
@@ -181,7 +183,9 @@ async function dispatchPress(target: Element, keys: string, options: PressOption
   let wrapped = false;
 
   if (focused && !down.defaultPrevented) {
-    if (isTab) wrapped = moveFocus(target, combo.shiftKey);
+    // A handler may have moved focus without cancelling; the browser then moves on
+    // from wherever focus is now.
+    if (isTab) wrapped = moveFocus(document.activeElement ?? target, combo.shiftKey);
     else if (combo.info.key === 'Enter' && plain && target.matches(ENTER_ACTIVATES) && isEnabled(target)) {
       (target as HTMLElement).click();
     }
