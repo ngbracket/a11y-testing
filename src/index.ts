@@ -19,3 +19,13 @@ export {
   type ElementDescription,
 } from './describe.js';
 export { stubLayout } from './layout.js';
+export {
+  checkA11y,
+  expectNoAxeViolations,
+  formatViolations,
+  type A11yCheckResult,
+  type A11yViolation,
+  type A11yViolationNode,
+  type CheckA11yOptions,
+} from './check.js';
+export { componentPath, owningComponent, DEFAULT_FRAMEWORK_PREFIXES } from './attribution.js';

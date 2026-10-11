@@ -1,10 +1,13 @@
 # @ngbracket/a11y-testing
 
-Accessibility helpers for Angular component tests in Vitest and TestBed. Press keys
-the way a browser does, check Tab order and focus, read an element's computed role
-and name, and capture what a component announces through ARIA live regions.
+Accessibility helpers for Angular component tests in Vitest and TestBed. Run axe on
+a fixture and see which component each failure came from. Press keys the way a
+browser does, check Tab order and focus, read an element's computed role and name,
+and capture what a component announces through ARIA live regions.
 
 ```ts
+expect(await checkA11y(fixture)).toHaveNoAxeViolations();
+
 await press(trigger, 'ArrowDown', { fixture });
 expect(document.activeElement?.textContent).toBe('Rename');
 
@@ -36,6 +39,78 @@ The helpers work in jsdom and need no browser mode. They take a `ComponentFixtur
 where waiting matters, but only call `detectChanges()` and `whenStable()` on it, so
 the package has no dependency on Angular. It is tested against Angular 22 and the
 CDK in zoneless TestBed.
+
+## Axe checks
+
+### `checkA11y(target, options?)`
+
+Runs axe-core on a fixture, an element or the whole `document`, and returns the
+violations. Given a fixture, it settles it first and checks the component's
+element. Each failing element comes with the Angular component that rendered it,
+read from Angular's dev-mode debug API (`window.ng`), which TestBed provides.
+
+```ts
+const result = await checkA11y(fixture);
+expect(result).toHaveNoAxeViolations();
+```
+
+A failure lists each rule and element. For a `ProductCard` with an image and no
+`alt` text:
+
+```text
+1 axe violation in 1 rule:
+
+image-alt (critical): Images must have alternative text
+  https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI
+  - in ProductCard: <img src="shoe.png">
+    Fix any of the following:
+      Element does not have an alt attribute
+      aria-label attribute does not exist or is empty
+      aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty
+      Element has no title attribute
+      Element's default semantics were not overridden with role="none" or role="presentation"
+
+Not checked:
+  color-contrast: jsdom has no layout to compute colours from
+  bypass, document-title, html-has-lang, html-lang-valid, html-xml-lang-mismatch, landmark-one-main, meta-refresh, meta-viewport, page-has-heading-one, region: page-level, runs only when you check the whole document
+```
+
+The component named is the nearest one your app owns. Components whose class name
+starts with `Mat`, `Cdk`, `Mdc` or `Nb` are treated as UI-library primitives and
+skipped, because a nameless `<button matButton>` is fixed where it's used. Every
+node also has `componentPath`, the full chain of owners, nearest first. Pass
+`{ frameworkPrefixes: [] }` when you're testing a component library's own code.
+
+Some rules are off by default:
+
+| Rule | Why |
+|---|---|
+| `color-contrast` | jsdom and happy-dom have no layout, so axe can't compute colours. Run in Vitest browser mode to include it. |
+| Page-level rules (`document-title`, `html-has-lang`, `landmark-one-main`, `region`, `bypass` and others) | A component on its own has no `<title>`, `lang` or `<main>`. They run when you pass `document`. |
+
+`result.skipped` lists what was turned off, and the failure text repeats it. A rule
+you name in `rules` or `runOnly` runs even if it's on this list. Other options:
+
+```ts
+await checkA11y(fixture, {
+  rules: { 'image-alt': { enabled: false } },
+  runOnly: ['wcag2a', 'wcag2aa'],
+  exclude: ['.third-party-map'],
+});
+```
+
+axe allows one run at a time, so parallel calls are queued. Documents inside
+iframes aren't supported. `result.incomplete`
+holds the checks axe couldn't decide, to look at by hand.
+
+axe checks roughly a third of WCAG success criteria. No violations means axe found
+no failures; keyboard use, focus and announcements need the other helpers here, and
+a person still needs to try the component.
+
+### `expectNoAxeViolations(target, options?)` and `formatViolations(result)`
+
+`expectNoAxeViolations` throws the failure text for use without the matcher.
+`formatViolations` returns it as a string.
 
 ## Keyboard
 
@@ -234,13 +309,15 @@ Some of this overlaps with tools you may already use:
   Angular fixture. CDK focus traps need `stubLayout()` with either tool.
 - `jest-dom` has `toHaveAccessibleName()` and `toHaveFocus()`. `describeElement()`
   returns role, name and states together, using axe-core's name computation.
-- `vitest-axe` and `jest-axe` run axe on a container. This package doesn't run axe
-  rules yet.
+- `vitest-axe` and `jest-axe` run axe on a container and have a
+  `toHaveNoViolations()` matcher. `checkA11y()` does the same and adds the owning
+  component to each failure. We haven't seen another axe test helper name the
+  Angular component.
 
-What this package adds is Angular-specific: settling zoneless fixtures, running real
-CDK focus traps in jsdom, keyCode for the CDK key managers, live-region
-announcements, focus checks in one line, and walkthrough snapshots that match
-a11y-devtools.
+What this package adds is Angular-specific: component names on axe failures,
+settling zoneless fixtures, running real CDK focus traps in jsdom, keyCode for the
+CDK key managers, live-region announcements, focus checks in one line, and
+walkthrough snapshots that match a11y-devtools.
 
 ## Develop
 
@@ -252,6 +329,4 @@ npm run build   # tsc -> dist/ (ESM + .d.ts)
 
 ## Roadmap
 
-- `checkA11y(fixture)`: axe rules on the fixture, with each failure naming the
-  Angular component that rendered it, and a `toHaveNoAxeViolations()` matcher.
 - A baseline file, so an existing app fails only on new problems.
