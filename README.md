@@ -309,7 +309,7 @@ it after each step:
 
 ```ts
 let announcements: AnnouncementRecorder;
-beforeEach(() => (announcements = recordAnnouncements(document, { quietMs: 75 })));
+beforeEach(() => (announcements = recordAnnouncements(document, { quietMs: 100 })));
 afterEach(() => announcements.stop());
 
 it('announces the drop', async () => {
@@ -331,11 +331,15 @@ any `role="status"` or `role="alert"` element.
 - `whenQuiet()` resolves once no live region has changed for `quietMs`. Announcers
   usually write their text on a timer, so wait before you read. Set `quietMs` just
   above your announcer's delay: 150 for the CDK `LiveAnnouncer` (100 ms), 75 for one
-  with a 50 ms delay. The default is 100. It uses real timers and throws under fake
-  timers; there, advance the timers and read `messages` directly.
+  with a 50 ms delay. The default is 100; leave some margin, since a slow CI machine
+  can run the announcer's timer late. If regions keep changing, it stops waiting
+  after 2 seconds (the second argument changes that). It uses real timers and throws
+  under fake timers; there, advance the timers and read `messages` directly.
 - `clear()` drops what was recorded so far.
 - Writing the same text again counts as a new message only after the region was
-  emptied, which is how announcers repeat a message.
+  emptied, which is how announcers repeat a message. Each region is tracked on its
+  own, so the same text in two regions is two messages. (Before 0.4.0, any text
+  equal to the previous message was dropped.)
 
 This reads the live region, so it only sees what reached the page. A spy on your
 announcer's `announce()` sees every call, including a message that a second call

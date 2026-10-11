@@ -61,5 +61,6 @@ describe('toHaveAnnounced with politeness', () => {
 
   it('says politeness needs a recorder', () => {
     expect(() => expect(['Saved']).toHaveAnnounced('Saved', { politeness: 'polite' })).toThrow(/only check politeness on a recorder/);
+    expect(() => expect(['Saved']).not.toHaveAnnounced('Saved', { politeness: 'polite' })).toThrow(/only check politeness on a recorder/);
   });
 });

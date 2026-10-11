@@ -33,10 +33,8 @@ expect.extend({
     }
     const messages: Announcement[] = found.map((m) => (typeof m === 'string' ? { text: m, politeness: 'polite' } : m));
     if (options.politeness && found.some((m) => typeof m === 'string')) {
-      return {
-        pass: false,
-        message: () => 'toHaveAnnounced can only check politeness on a recorder from recordAnnouncements().',
-      };
+      // Throw rather than fail, so `.not` can't turn the misuse into a pass.
+      throw new Error('toHaveAnnounced can only check politeness on a recorder from recordAnnouncements().');
     }
     const matches = (text: string) => (typeof expected === 'string' ? text === expected : expected.test(text));
     const pass = messages.some(

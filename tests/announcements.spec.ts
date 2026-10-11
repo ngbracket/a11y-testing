@@ -185,6 +185,9 @@ describe('politeness, repeats and whenQuiet', () => {
       await expect(captureAnnouncements({ whenStable: async () => undefined }, () => undefined)).rejects.toThrow(
         /settleMs: 0/,
       );
+      await expect(
+        captureAnnouncements({ whenStable: async () => undefined }, () => undefined, { settleMs: 0 }),
+      ).resolves.toEqual([]);
     } finally {
       vi.useRealTimers();
       recorder.stop();
