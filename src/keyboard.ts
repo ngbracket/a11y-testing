@@ -12,6 +12,13 @@ import { radioGroupOf, sameRadioGroup, tabOrder } from './tab-order.js';
 export interface PressOptions {
   /** Settle this fixture after the key press, so the DOM shows the result. */
   readonly fixture?: AngularFixtureLike;
+  /**
+   * Do the browser's default action for Tab, Enter and Space. Default true.
+   * Turn it off for code that checks `event.isTrusted`: the CDK menu trigger
+   * opens on an untrusted Enter or Space itself, because no native click
+   * follows a synthetic key event, so the emulated click would close it again.
+   */
+  readonly defaultAction?: boolean;
 }
 
 interface KeyInfo {
@@ -175,14 +182,16 @@ async function dispatchPress(target: Element, keys: string, options: PressOption
   const combo = parseCombo(keys);
   // Compare with the target's own root, so a focused button in a shadow root counts.
   const root = target.getRootNode() as Document | ShadowRoot;
-  const focused = target === root.activeElement || (target === document.body && !document.activeElement);
+  const runDefaults =
+    options.defaultAction !== false &&
+    (target === root.activeElement || (target === document.body && !document.activeElement));
   const down = keyboardEvent('keydown', combo);
   target.dispatchEvent(down);
   const plain = !combo.ctrlKey && !combo.altKey && !combo.metaKey;
   const isTab = combo.info.key === 'Tab' && plain;
   let wrapped = false;
 
-  if (focused && !down.defaultPrevented) {
+  if (runDefaults && !down.defaultPrevented) {
     // A handler may have moved focus without cancelling; the browser then moves on
     // from wherever focus is now.
     if (isTab) wrapped = moveFocus(document.activeElement ?? target, combo.shiftKey);
@@ -196,7 +205,7 @@ async function dispatchPress(target: Element, keys: string, options: PressOption
   const up = keyboardEvent('keyup', combo);
   upTarget.dispatchEvent(up);
   if (
-    focused &&
+    runDefaults &&
     combo.info.key === ' ' &&
     plain &&
     !down.defaultPrevented &&

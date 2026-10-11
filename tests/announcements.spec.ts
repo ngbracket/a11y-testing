@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { captureAnnouncements, recordAnnouncements } from '../src';
 
 /** Let queued MutationObserver callbacks flush. */
@@ -128,5 +128,69 @@ describe('captureAnnouncements', () => {
     });
 
     expect(announced).toEqual(['Loaded']);
+  });
+});
+
+describe('politeness, repeats and whenQuiet', () => {
+  it('records politeness when the text is written', async () => {
+    const region = liveRegion('polite');
+    const alert = document.createElement('div');
+    alert.setAttribute('role', 'alert');
+    document.body.appendChild(alert);
+    const recorder = recordAnnouncements();
+
+    region.textContent = 'Saved';
+    await tick();
+    region.setAttribute('aria-live', 'assertive');
+    region.textContent = 'Connection lost';
+    alert.textContent = 'Error';
+    await tick();
+
+    expect(recorder.messages).toEqual([
+      { text: 'Saved', politeness: 'polite' },
+      { text: 'Connection lost', politeness: 'assertive' },
+      { text: 'Error', politeness: 'assertive' },
+    ]);
+    recorder.stop();
+  });
+
+  it('counts the same message again after the region was emptied', async () => {
+    const region = liveRegion();
+    const recorder = recordAnnouncements();
+    region.textContent = 'Saved';
+    await tick();
+    region.textContent = '';
+    await tick();
+    region.textContent = 'Saved';
+    await tick();
+    expect(recorder.announcements).toEqual(['Saved', 'Saved']);
+    recorder.stop();
+  });
+
+  it('whenQuiet waits for a timer-delayed announcement', async () => {
+    const region = liveRegion();
+    const recorder = recordAnnouncements(document, { quietMs: 75 });
+    region.textContent = '';
+    setTimeout(() => (region.textContent = 'Dropped'), 50);
+    await recorder.whenQuiet();
+    expect(recorder.announcements).toEqual(['Dropped']);
+    recorder.stop();
+  });
+
+  it('whenQuiet and captureAnnouncements refuse to hang under fake timers', async () => {
+    const recorder = recordAnnouncements();
+    vi.useFakeTimers();
+    try {
+      await expect(recorder.whenQuiet()).rejects.toThrow(/fake timers/);
+      await expect(captureAnnouncements({ whenStable: async () => undefined }, () => undefined)).rejects.toThrow(
+        /settleMs: 0/,
+      );
+      await expect(
+        captureAnnouncements({ whenStable: async () => undefined }, () => undefined, { settleMs: 0 }),
+      ).resolves.toEqual([]);
+    } finally {
+      vi.useRealTimers();
+      recorder.stop();
+    }
   });
 });

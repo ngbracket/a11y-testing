@@ -41,3 +41,26 @@ describe('toBeFocusTrapped', () => {
     await expect(expect(dialog).toBeFocusTrapped()).rejects.toThrow(/moved focus out of the container/);
   });
 });
+
+describe('toHaveAnnounced with politeness', () => {
+  it('checks politeness on a recorder', async () => {
+    const region = document.createElement('div');
+    region.setAttribute('aria-live', 'assertive');
+    document.body.appendChild(region);
+    const recorder = recordAnnouncements();
+    region.textContent = 'Move cancelled';
+    await new Promise((r) => setTimeout(r, 0));
+    recorder.stop();
+
+    expect(recorder).toHaveAnnounced('Move cancelled', { politeness: 'assertive' });
+    expect(recorder).not.toHaveAnnounced('Move cancelled', { politeness: 'polite' });
+    expect(() => expect(recorder).toHaveAnnounced('Move cancelled', { politeness: 'polite' })).toThrow(
+      'Expected an announcement matching "Move cancelled" (polite). Announced:\n  "Move cancelled" (assertive)',
+    );
+  });
+
+  it('says politeness needs a recorder', () => {
+    expect(() => expect(['Saved']).toHaveAnnounced('Saved', { politeness: 'polite' })).toThrow(/only check politeness on a recorder/);
+    expect(() => expect(['Saved']).not.toHaveAnnounced('Saved', { politeness: 'polite' })).toThrow(/only check politeness on a recorder/);
+  });
+});

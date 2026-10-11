@@ -117,6 +117,17 @@ describe('press', () => {
     expect(click).not.toHaveBeenCalled();
   });
 
+  it('skips default actions with defaultAction: false', async () => {
+    render('<button id="b">B</button><button id="c">C</button>');
+    const click = vi.fn();
+    $('#b').addEventListener('click', click);
+    $('#b').focus();
+    await press($('#b'), 'Enter', { defaultAction: false });
+    await press('Tab', { defaultAction: false });
+    expect(click).not.toHaveBeenCalled();
+    expect(document.activeElement?.id).toBe('b');
+  });
+
   it('does not click a disabled button', async () => {
     render('<button id="b" disabled>B</button>');
     const click = vi.fn();
