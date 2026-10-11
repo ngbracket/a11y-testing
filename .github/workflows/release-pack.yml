@@ -1,0 +1,78 @@
+name: Release pack
+
+# Publish @ngbracket/a11y-testing to npm with trusted publishing (OIDC):
+# no stored token, no OTP.
+#
+# Flow: bump the version in package.json, merge to main, then run this from the
+# Actions tab. Every run (dry runs too) waits for approval in the npm-publish
+# environment and only runs from main.
+#
+# One-time setup on npmjs.com, after the first publish: Package → Settings →
+# Trusted Publisher → GitHub Actions, with
+#   Organization or user : ngbracket
+#   Repository           : a11y-testing
+#   Workflow filename    : release-pack.yml
+# The package is public (publishConfig.access in package.json).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build + npm publish --dry-run only (no real publish)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write # needed for npm trusted publishing (OIDC)
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish @ngbracket/a11y-testing
+    environment: npm-publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      # No `registry-url`: it makes setup-node write an `_authToken` line to
+      # .npmrc, and npm then skips OIDC trusted publishing.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      # Trusted publishing needs npm >= 11.5.1.
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@^11
+          npm --version
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Preview publish
+        run: |
+          node -e "const p=require('./package.json');console.log('Publishing '+p.name+'@'+p.version)"
+          npm publish --dry-run
+
+      # Only the duplicate-version E403 counts as a green no-op; any other error fails.
+      - name: Publish (trusted publishing)
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set +e
+          OUT=$(npm publish 2>&1)
+          CODE=$?
+          echo "$OUT"
+          if [ $CODE -ne 0 ]; then
+            if echo "$OUT" | grep -q "cannot publish over the previously published versions"; then
+              echo "::notice::Version already published, treating as a no-op."
+              exit 0
+            fi
+            exit $CODE
+          fi

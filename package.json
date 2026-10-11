@@ -12,6 +12,9 @@
     "type": "git",
     "url": "https://github.com/ngbracket/a11y-testing"
   },
+  "bugs": {
+    "url": "https://github.com/ngbracket/a11y-testing/issues"
+  },
   "keywords": [
     "angular",
     "accessibility",
@@ -44,6 +47,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
   },
