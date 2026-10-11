@@ -1,4 +1,4 @@
-import { recordAnnouncements } from './announcements.js';
+import { fakeTimersInstalled, recordAnnouncements } from './announcements.js';
 import type { AngularFixtureLike } from './fixture.js';
 
 export interface CaptureOptions {
@@ -34,6 +34,13 @@ export async function captureAnnouncements(
   await action();
   await fixture.whenStable(); // zoneless: wait for the signal-triggered CD
   const settleMs = options.settleMs ?? 150;
+  if (settleMs > 0 && fakeTimersInstalled()) {
+    recorder.stop();
+    throw new Error(
+      'captureAnnouncements() waits settleMs on a real timer, which never fires under fake timers. ' +
+        'Pass { settleMs: 0 } and advance the timers in the action.',
+    );
+  }
   if (settleMs > 0) await new Promise((resolve) => setTimeout(resolve, settleMs));
 
   recorder.stop();

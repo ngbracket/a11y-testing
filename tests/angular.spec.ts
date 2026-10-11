@@ -165,6 +165,23 @@ describe('with Angular and the CDK', () => {
     );
   });
 
+  it('CDK menu trigger: Enter needs defaultAction: false, since the CDK opens on an untrusted keydown', async () => {
+    const fixture = TestBed.createComponent(MenuHost);
+    await settle(fixture);
+    const trigger = fixture.nativeElement.querySelector('button') as HTMLElement;
+    const menu = () => document.querySelector('[role="menu"]');
+
+    // The emulated click toggles the menu the keydown just opened.
+    trigger.focus();
+    await press('Enter', { fixture });
+    expect(menu()).toBeNull();
+
+    trigger.focus();
+    await press('Enter', { fixture, defaultAction: false });
+    expect(menu()).not.toBeNull();
+    expect(document.activeElement?.textContent).toBe('Rename');
+  });
+
   it('cdkTrapFocus: fails in plain jsdom with a hint, passes with stubLayout()', async () => {
     const fixture = TestBed.createComponent(TrapHost);
     await settle(fixture);

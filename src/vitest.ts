@@ -7,38 +7,52 @@
  * ```
  */
 import { expect } from 'vitest';
-import type { AnnouncementRecorder } from './announcements.js';
+import type { Announcement, AnnouncementRecorder } from './announcements.js';
 import { formatViolations, type A11yCheckResult } from './check.js';
 import { checkFocusTrapped, type FocusCheckOptions } from './focus.js';
 
 type Announced = AnnouncementRecorder | readonly string[];
 
-function announcementsOf(received: unknown): readonly string[] | null {
+function messagesOf(received: unknown): readonly Announcement[] | readonly string[] | null {
   if (Array.isArray(received)) return received;
-  if (received && typeof received === 'object' && 'announcements' in received) {
-    return (received as AnnouncementRecorder).announcements;
+  if (received && typeof received === 'object' && 'messages' in received) {
+    return (received as AnnouncementRecorder).messages;
   }
   return null;
 }
 
 expect.extend({
-  toHaveAnnounced(received: Announced, expected: string | RegExp) {
-    const announced = announcementsOf(received);
-    if (!announced) {
+  toHaveAnnounced(received: Announced, expected: string | RegExp, options: { politeness?: Announcement['politeness'] } = {}) {
+    const found = messagesOf(received);
+    if (!found) {
       return {
         pass: false,
         message: () =>
           'toHaveAnnounced expects the array from captureAnnouncements() or a recorder from recordAnnouncements().',
       };
     }
-    const pass = announced.some((text) => (typeof expected === 'string' ? text === expected : expected.test(text)));
-    const list = announced.length ? announced.map((t) => `  "${t}"`).join('\n') : '  (nothing)';
+    const messages: Announcement[] = found.map((m) => (typeof m === 'string' ? { text: m, politeness: 'polite' } : m));
+    if (options.politeness && found.some((m) => typeof m === 'string')) {
+      return {
+        pass: false,
+        message: () => 'toHaveAnnounced can only check politeness on a recorder from recordAnnouncements().',
+      };
+    }
+    const matches = (text: string) => (typeof expected === 'string' ? text === expected : expected.test(text));
+    const pass = messages.some(
+      (m) => matches(m.text) && (!options.politeness || m.politeness === options.politeness),
+    );
+    const showPoliteness = Boolean(options.politeness);
+    const list = messages.length
+      ? messages.map((m) => `  "${m.text}"${showPoliteness ? ` (${m.politeness})` : ''}`).join('\n')
+      : '  (nothing)';
+    const what = `${typeof expected === 'string' ? `"${expected}"` : String(expected)}${options.politeness ? ` (${options.politeness})` : ''}`;
     return {
       pass,
       message: () =>
         pass
-          ? `Expected no announcement matching ${String(expected)}, but it was announced. Announced:\n${list}`
-          : `Expected an announcement matching ${typeof expected === 'string' ? `"${expected}"` : String(expected)}. Announced:\n${list}`,
+          ? `Expected no announcement matching ${what}, but it was announced. Announced:\n${list}`
+          : `Expected an announcement matching ${what}. Announced:\n${list}`,
     };
   },
 
@@ -68,9 +82,10 @@ expect.extend({
 interface A11yMatchers<R = unknown> {
   /**
    * The recorder or captured array holds an announcement equal to `expected`
-   * (a string matches a whole message), or matching it (a RegExp).
+   * (a string matches a whole message), or matching it (a RegExp). Pass
+   * `{ politeness: 'assertive' }` to check that too (recorders only).
    */
-  toHaveAnnounced(expected: string | RegExp): R;
+  toHaveAnnounced(expected: string | RegExp, options?: { politeness?: 'polite' | 'assertive' }): R;
   /** The result of `await checkA11y(...)` has no violations. Failures list each one with its component. */
   toHaveNoAxeViolations(): R;
   /** Tab and Shift+Tab stay inside this element and reach every stop. Await it. */

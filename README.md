@@ -145,9 +145,24 @@ If focus was lost, pressing Enter on a button clicks nothing and your test fails
 A `<div role="button">` gets no default action either, as in a browser. If it has
 no key handler of its own, pressing Enter on it does nothing.
 
+Pass `{ defaultAction: false }` to send only the key events. You need it for code
+that checks `event.isTrusted`, such as the CDK menu trigger. A synthetic key event
+is never trusted, and no native click follows one, so the trigger opens the menu on
+the `keydown` itself. The emulated click would then close it again. A real keypress
+is trusted, so in a browser the trigger leaves the `keydown` alone and opens on the
+click.
+
+```ts
+trigger.focus();
+await press('Enter', { fixture, defaultAction: false }); // CDK menu trigger
+```
+
 These browser behaviours aren't emulated: Enter in a text field doesn't submit the
 form, Shift with a digit or punctuation key keeps the unshifted `key`, and Tab
 doesn't move into or through shadow roots.
+
+The key events are dispatched before `press()` first awaits, so handlers have run
+by the time it returns its promise. Await it to let the fixture settle.
 
 ### `tab(options?)` and `shiftTab(options?)`
 
@@ -272,8 +287,9 @@ Runs `action` and returns what it announced. It settles the fixture before and
 after, and listens to the whole document, because the CDK `LiveAnnouncer` puts its
 live region on `<body>`. After the fixture settles it keeps listening for 150 ms,
 since `LiveAnnouncer` writes its message about 100 ms after `announce()`. Change
-that with `{ settleMs: 300 }`. The wait uses a real timer, so with
-`vi.useFakeTimers()` pass `{ settleMs: 0 }` and advance the timers yourself.
+that with `{ settleMs: 300 }`. The wait uses a real timer. Under
+`vi.useFakeTimers()` it throws, so pass `{ settleMs: 0 }` and advance the timers in
+the action.
 
 ```ts
 const announced = await captureAnnouncements(fixture, () => {
@@ -286,20 +302,45 @@ expect(announced).toHaveAnnounced('3 results');
 It accepts the array from `captureAnnouncements()` or a recorder. On failure it
 lists everything that was announced.
 
-### `recordAnnouncements(root?)`
+### `recordAnnouncements(root?, options?)`
 
-The lower-level recorder:
+A recorder that keeps listening across a test. Create it in `beforeEach` and read
+it after each step:
 
 ```ts
-const recorder = recordAnnouncements(document);
-fixture.componentInstance.save();
-await settle(fixture);
-expect(recorder).toHaveAnnounced('Saved');
-recorder.stop();
+let announcements: AnnouncementRecorder;
+beforeEach(() => (announcements = recordAnnouncements(document, { quietMs: 75 })));
+afterEach(() => announcements.stop());
+
+it('announces the drop', async () => {
+  await press(card, 'Enter', { fixture });
+  await announcements.whenQuiet();
+  expect(announcements).toHaveAnnounced('Dropped Card A in Done, position 1.', {
+    politeness: 'assertive',
+  });
+});
 ```
 
 It records text written to any `[aria-live]` region (except `aria-live="off"`) and
 any `role="status"` or `role="alert"` element.
+
+- `announcements` holds the messages as strings. `messages` holds them with their
+  politeness: `assertive` for `aria-live="assertive"` or `role="alert"`, otherwise
+  `polite`, read when the text is written. Pass `{ politeness }` to
+  `toHaveAnnounced()` to check it.
+- `whenQuiet()` resolves once no live region has changed for `quietMs`. Announcers
+  usually write their text on a timer, so wait before you read. Set `quietMs` just
+  above your announcer's delay: 150 for the CDK `LiveAnnouncer` (100 ms), 75 for one
+  with a 50 ms delay. The default is 100. It uses real timers and throws under fake
+  timers; there, advance the timers and read `messages` directly.
+- `clear()` drops what was recorded so far.
+- Writing the same text again counts as a new message only after the region was
+  emptied, which is how announcers repeat a message.
+
+This reads the live region, so it only sees what reached the page. A spy on your
+announcer's `announce()` sees every call, including a message that a second call
+replaced before it was written. The cost is the wait: each `whenQuiet()` takes at
+least `quietMs`.
 
 ## How it compares
 

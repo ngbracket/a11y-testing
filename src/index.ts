@@ -1,4 +1,9 @@
-export { recordAnnouncements, type AnnouncementRecorder } from './announcements.js';
+export {
+  recordAnnouncements,
+  type Announcement,
+  type AnnouncementRecorder,
+  type RecordOptions,
+} from './announcements.js';
 export { captureAnnouncements, type CaptureOptions } from './capture.js';
 export { settle, type AngularFixtureLike } from './fixture.js';
 export { press, tab, shiftTab, type PressOptions } from './keyboard.js';
