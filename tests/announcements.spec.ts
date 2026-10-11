@@ -261,6 +261,15 @@ describe('waitFor', () => {
     recorder.stop();
   });
 
+  it('resolves a pending wait whose message is still queued when the recorder stops', async () => {
+    const region = liveRegion();
+    const recorder = recordAnnouncements(document);
+    const pending = recorder.waitFor('Saved');
+    region.textContent = 'Saved'; // queued: the observer hasn't delivered it yet
+    recorder.stop();
+    await expect(pending).resolves.toEqual({ text: 'Saved', politeness: 'polite' });
+  });
+
   it('rejects a pending wait when the recorder stops, and any wait after it', async () => {
     liveRegion();
     const recorder = recordAnnouncements(document);

@@ -334,16 +334,16 @@ any `role="status"` or `role="alert"` element.
 - `waitFor(expected, options?)` resolves with the first message equal to `expected`
   (a string matches a whole message) or matching it (a RegExp), as soon as it's
   written. Messages recorded before the call count too, back to the last `clear()`.
-  Pass `{ politeness }` to accept only that politeness. If no message matches within
-  `timeoutMs` (default 1000), it rejects and lists what was announced, so the
-  `await` is the assertion. It uses real timers and throws under fake timers.
+  Both options are optional: `{ politeness }` accepts only that politeness, and if
+  no message matches within `timeoutMs` (default 1000), it rejects and lists what
+  was announced, so the `await` is the assertion. It uses real timers and throws under fake timers.
 - `whenQuiet()` resolves once no live region has changed for `quietMs`. Use it to
   check that something was not announced, or before `clear()` when you don't know
-  the last message. Announcers
-  usually write their text on a timer, so wait before you read. Set `quietMs` just
-  above your announcer's delay: 150 for the CDK `LiveAnnouncer` (100 ms), 75 for one
-  with a 50 ms delay. The default is 100; leave some margin, since a slow CI machine
-  can run the announcer's timer late. If regions keep changing, it stops waiting
+  the last message. Announcers usually write their text on a timer, so set
+  `quietMs` with margin above your announcer's delay: 150 for the CDK
+  `LiveAnnouncer` (100 ms), and the default of 100 for one with a 50 ms delay. A slow
+  CI machine can run the announcer's timer late, and a `whenQuiet()` that returns
+  too early lets a negative check pass. If regions keep changing, it stops waiting
   after 2 seconds (the second argument changes that). It uses real timers and throws
   under fake timers; there, advance the timers and read `messages` directly.
 - `clear()` drops what was recorded so far.

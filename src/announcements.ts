@@ -89,9 +89,9 @@ function politenessOf(region: Element): Announcement['politeness'] {
 export interface RecordOptions {
   /**
    * How long live regions must stay unchanged before `whenQuiet()` resolves, in
-   * milliseconds. Default 100. Set it just above your announcer's delay: the CDK
-   * `LiveAnnouncer` writes after 100 ms, so use 150 there; an announcer with a
-   * 50 ms delay can use 75.
+   * milliseconds. Default 100. Leave margin above your announcer's delay: the CDK
+   * `LiveAnnouncer` writes after 100 ms, so use 150 there; the default suits an
+   * announcer with a 50 ms delay.
    */
   readonly quietMs?: number;
 }
