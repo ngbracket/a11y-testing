@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import '../src/vitest';
 import { captureAnnouncements, recordAnnouncements } from '../src';
 
 /** Let queued MutationObserver callbacks flush. */
@@ -177,11 +178,12 @@ describe('politeness, repeats and whenQuiet', () => {
     recorder.stop();
   });
 
-  it('whenQuiet and captureAnnouncements refuse to hang under fake timers', async () => {
+  it('whenQuiet, waitFor and captureAnnouncements refuse to hang under fake timers', async () => {
     const recorder = recordAnnouncements();
     vi.useFakeTimers();
     try {
       await expect(recorder.whenQuiet()).rejects.toThrow(/fake timers/);
+      await expect(recorder.waitFor('x')).rejects.toThrow(/fake timers/);
       await expect(captureAnnouncements({ whenStable: async () => undefined }, () => undefined)).rejects.toThrow(
         /settleMs: 0/,
       );
@@ -192,5 +194,79 @@ describe('politeness, repeats and whenQuiet', () => {
       vi.useRealTimers();
       recorder.stop();
     }
+  });
+});
+
+describe('waitFor', () => {
+  it('resolves as soon as the message is written, without waiting for quiet', async () => {
+    const region = liveRegion('assertive');
+    const recorder = recordAnnouncements(document, { quietMs: 1000 });
+    region.textContent = '';
+    setTimeout(() => (region.textContent = 'Grabbed Card A'), 50);
+
+    const started = Date.now();
+    const found = await recorder.waitFor(/Grabbed/, { politeness: 'assertive' });
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(found).toEqual({ text: 'Grabbed Card A', politeness: 'assertive' });
+    recorder.stop();
+  });
+
+  it('resolves at once for a message recorded before the call, back to the last clear()', async () => {
+    const region = liveRegion();
+    const recorder = recordAnnouncements(document);
+    region.textContent = 'old';
+    await tick();
+    recorder.clear();
+    region.textContent = 'Saved';
+    // No tick: waitFor reads records the observer hasn't delivered yet.
+    await expect(recorder.waitFor('Saved', { timeoutMs: 1 })).resolves.toEqual({ text: 'Saved', politeness: 'polite' });
+    await expect(recorder.waitFor('old', { timeoutMs: 20 })).rejects.toThrow(/"old"/);
+    recorder.stop();
+  });
+
+  it('keeps waiting past a message with the wrong politeness or a partial match', async () => {
+    const polite = liveRegion('polite');
+    const assertive = liveRegion('assertive');
+    const recorder = recordAnnouncements(document);
+    setTimeout(() => (polite.textContent = 'Moved'), 10);
+    setTimeout(() => (assertive.textContent = 'Moved to Done'), 30);
+    setTimeout(() => (assertive.textContent = 'Moved'), 50);
+
+    await expect(recorder.waitFor('Moved', { politeness: 'assertive' })).resolves.toEqual({
+      text: 'Moved',
+      politeness: 'assertive',
+    });
+    expect(recorder.announcements).toEqual(['Moved', 'Moved to Done', 'Moved']);
+    recorder.stop();
+  });
+
+  it('rejects after the timeout and lists what was announced', async () => {
+    const region = liveRegion();
+    const recorder = recordAnnouncements(document);
+    region.textContent = '3 results';
+    await expect(recorder.waitFor('4 results', { politeness: 'polite', timeoutMs: 30 })).rejects.toThrow(
+      'Expected an announcement matching "4 results" (polite) within 30 ms. Announced:\n  "3 results" (polite)',
+    );
+    recorder.stop();
+  });
+
+  it('matches a global RegExp every time', async () => {
+    const region = liveRegion();
+    const recorder = recordAnnouncements(document);
+    region.textContent = 'Saved';
+    const saved = /Saved/g;
+    await recorder.waitFor(saved);
+    await recorder.waitFor(saved);
+    expect(recorder).toHaveAnnounced(saved);
+    recorder.stop();
+  });
+
+  it('rejects a pending wait when the recorder stops, and any wait after it', async () => {
+    liveRegion();
+    const recorder = recordAnnouncements(document);
+    const pending = recorder.waitFor('never');
+    recorder.stop();
+    await expect(pending).rejects.toThrow(/stopped before the announcement came/);
+    await expect(recorder.waitFor('never')).rejects.toThrow(/the recorder was stopped/);
   });
 });

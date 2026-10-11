@@ -32,8 +32,46 @@ export interface AnnouncementRecorder {
    * `timeoutMs` (default 2000) and resolves anyway.
    */
   whenQuiet(quietMs?: number, timeoutMs?: number): Promise<void>;
-  /** Stop observing. */
+  /**
+   * Resolve with the first message equal to `expected` (a string matches a whole
+   * message) or matching it (a RegExp), as soon as it's written. Messages recorded
+   * before the call count too, back to the last `clear()`. Rejects after
+   * `timeoutMs` (default 1000), listing what was announced. Uses real timers.
+   */
+  waitFor(expected: string | RegExp, options?: WaitForOptions): Promise<Announcement>;
+  /** Stop observing. A `waitFor()` still waiting rejects. */
   stop(): void;
+}
+
+export interface WaitForOptions {
+  /** Only accept a message with this politeness. */
+  readonly politeness?: Announcement['politeness'];
+  /** How long to wait before rejecting, in milliseconds. Default 1000. */
+  readonly timeoutMs?: number;
+}
+
+/** True when `message` is `expected` (whole text) or matches it, with the politeness if given. */
+export function matchesAnnouncement(
+  message: Announcement,
+  expected: string | RegExp,
+  politeness?: Announcement['politeness'],
+): boolean {
+  if (politeness && message.politeness !== politeness) return false;
+  if (typeof expected === 'string') return message.text === expected;
+  expected.lastIndex = 0; // a /g or /y RegExp keeps state between test() calls
+  return expected.test(message.text);
+}
+
+/** `"3 results" (assertive)` or `/Grabbed/`: how failure messages name what was expected. */
+export function describeExpected(expected: string | RegExp, politeness?: Announcement['politeness']): string {
+  const what = typeof expected === 'string' ? `"${expected}"` : String(expected);
+  return politeness ? `${what} (${politeness})` : what;
+}
+
+/** The recorded messages, one per line, for failure messages. */
+export function listAnnouncements(messages: readonly Announcement[], showPoliteness: boolean): string {
+  if (!messages.length) return '  (nothing)';
+  return messages.map((m) => `  "${m.text}"${showPoliteness ? ` (${m.politeness})` : ''}`).join('\n');
 }
 
 /** True while Vitest or Jest fake timers (@sinonjs/fake-timers) replace setTimeout. */
@@ -69,6 +107,9 @@ export function recordAnnouncements(
   // repeat a message.
   const lastText = new WeakMap<Element, string>();
   let lastChange = Date.now();
+  let stopped = false;
+  // waitFor() calls still waiting: each checks the messages again after a new one.
+  const waiters = new Set<{ check(): void; fail(error: Error): void }>();
 
   const capture = (region: Element): void => {
     const text = (region.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -77,6 +118,7 @@ export function recordAnnouncements(
     if (!text) return;
     announcements.push(text);
     messages.push({ text, politeness: politenessOf(region) });
+    for (const waiter of [...waiters]) waiter.check();
   };
 
   const process = (records: MutationRecord[]): void => {
@@ -119,10 +161,59 @@ export function recordAnnouncements(
         await new Promise((resolve) => setTimeout(resolve, Math.min(quietMs - quietFor, 25) || 1));
       }
     },
+    waitFor: (expected, { politeness, timeoutMs = 1000 } = {}) => {
+      if (fakeTimersInstalled()) {
+        return Promise.reject(
+          new Error(
+            'waitFor() waits on real timers, so it would never finish under fake timers. ' +
+              'Advance the timers yourself (vi.advanceTimersByTime), then check the recorder with toHaveAnnounced().',
+          ),
+        );
+      }
+      process(observer.takeRecords());
+      const find = () => messages.find((m) => matchesAnnouncement(m, expected, politeness));
+      const already = find();
+      if (already) return Promise.resolve(already);
+      const what = describeExpected(expected, politeness);
+      if (stopped) {
+        return Promise.reject(new Error(`waitFor(${what}): the recorder was stopped.`));
+      }
+      return new Promise<Announcement>((resolve, reject) => {
+        const waiter = {
+          check: () => {
+            const found = find();
+            if (!found) return;
+            done();
+            resolve(found);
+          },
+          fail: (error: Error) => {
+            done();
+            reject(error);
+          },
+        };
+        const timer = setTimeout(() => {
+          process(observer.takeRecords());
+          if (!waiters.has(waiter)) return; // the last records held a match
+          waiter.fail(
+            new Error(
+              `Expected an announcement matching ${what} within ${timeoutMs} ms. Announced:\n` +
+                listAnnouncements(messages, Boolean(politeness)),
+            ),
+          );
+        }, timeoutMs);
+        const done = () => {
+          clearTimeout(timer);
+          waiters.delete(waiter);
+        };
+        waiters.add(waiter);
+      });
+    },
     stop: () => {
       // Handle changes the observer has queued but not yet delivered.
       process(observer.takeRecords());
       observer.disconnect();
+      stopped = true;
+      for (const waiter of [...waiters]) waiter.fail(new Error('waitFor(): the recorder was stopped before the announcement came.'));
     },
   };
 }

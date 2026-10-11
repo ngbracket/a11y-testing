@@ -7,7 +7,13 @@
  * ```
  */
 import { expect } from 'vitest';
-import type { Announcement, AnnouncementRecorder } from './announcements.js';
+import {
+  describeExpected,
+  listAnnouncements,
+  matchesAnnouncement,
+  type Announcement,
+  type AnnouncementRecorder,
+} from './announcements.js';
 import { formatViolations, type A11yCheckResult } from './check.js';
 import { checkFocusTrapped, type FocusCheckOptions } from './focus.js';
 
@@ -36,15 +42,9 @@ expect.extend({
       // Throw rather than fail, so `.not` can't turn the misuse into a pass.
       throw new Error('toHaveAnnounced can only check politeness on a recorder from recordAnnouncements().');
     }
-    const matches = (text: string) => (typeof expected === 'string' ? text === expected : expected.test(text));
-    const pass = messages.some(
-      (m) => matches(m.text) && (!options.politeness || m.politeness === options.politeness),
-    );
-    const showPoliteness = Boolean(options.politeness);
-    const list = messages.length
-      ? messages.map((m) => `  "${m.text}"${showPoliteness ? ` (${m.politeness})` : ''}`).join('\n')
-      : '  (nothing)';
-    const what = `${typeof expected === 'string' ? `"${expected}"` : String(expected)}${options.politeness ? ` (${options.politeness})` : ''}`;
+    const pass = messages.some((m) => matchesAnnouncement(m, expected, options.politeness));
+    const list = listAnnouncements(messages, Boolean(options.politeness));
+    const what = describeExpected(expected, options.politeness);
     return {
       pass,
       message: () =>
