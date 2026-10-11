@@ -1,11 +1,10 @@
 /**
  * Capture what a component announces to assistive technology.
  *
- * axe cannot see this — announcements are a behavioral, time-dependent DOM change
- * (text pushed into an ARIA live region), not a static snapshot property. This
- * records text pushed into any live region (`[aria-live]`, `role="status"`,
- * `role="alert"`) so tests can assert on it. Pure DOM: works in jsdom, no browser
- * mode required.
+ * axe checks a snapshot of the page. An announcement is text written into an
+ * ARIA live region over time, so axe can't check it. This records text written
+ * to any live region (`[aria-live]`, `role="status"`, `role="alert"`) so tests
+ * can assert on it. It uses only the DOM, so it works in jsdom.
  */
 const LIVE_SELECTOR = '[aria-live], [role="status"], [role="alert"]';
 

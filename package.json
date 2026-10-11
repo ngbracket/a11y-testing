@@ -1,7 +1,7 @@
 {
   "name": "@ngbracket/a11y-testing",
-  "version": "0.1.0",
-  "description": "Test what an Angular component announces to screen readers (ARIA live regions, CDK LiveAnnouncer) in Vitest and TestBed, with zoneless-aware waiting.",
+  "version": "0.2.0",
+  "description": "Accessibility helpers for Angular component tests in Vitest and TestBed: key presses that do what the browser does, real Tab order, focus return and focus trap checks, computed names, tab-order snapshots, and live-region announcements.",
   "license": "MIT",
   "author": "Duncan Faulkner",
   "contributors": [
@@ -20,7 +20,11 @@
     "vitest",
     "testbed",
     "aria-live",
-    "ngbracket"
+    "ngbracket",
+    "keyboard",
+    "focus",
+    "focus-trap",
+    "accessible-name"
   ],
   "type": "module",
   "main": "dist/index.js",
@@ -29,6 +33,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./vitest": {
+      "types": "./dist/vitest.d.ts",
+      "import": "./dist/vitest.js"
     }
   },
   "files": [
@@ -41,20 +49,34 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc -p tsconfig.spec.json"
   },
   "peerDependencies": {
-    "@angular/core": ">=18.0.0"
+    "@angular/core": ">=18.0.0",
+    "vitest": ">=4.0.0"
   },
   "peerDependenciesMeta": {
     "@angular/core": {
       "optional": true
+    },
+    "vitest": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@angular/cdk": "~22.2.0",
+    "@angular/common": "~22.2.1",
+    "@angular/compiler": "~22.2.1",
+    "@angular/core": "~22.2.1",
+    "@angular/platform-browser": "~22.2.1",
     "@types/node": "^26.5.0",
     "jsdom": "^30.0.1",
+    "rxjs": "^7.8.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "axe-core": "^4.14.0"
   }
 }

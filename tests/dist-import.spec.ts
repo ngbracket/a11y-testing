@@ -15,6 +15,8 @@ describe('built package', () => {
     )
       .toString()
       .trim();
-    expect(out).toBe('captureAnnouncements,recordAnnouncements');
+    expect(out).toBe(
+      'activeDescendant,captureAnnouncements,checkFocusTrapped,describeElement,describeElements,expectFocusReturn,expectFocusTrapped,formatDescription,isFocusSentinel,isHidden,isTabbable,press,recordAnnouncements,settle,shiftTab,stubLayout,tab,tabOrder,tabWalkthrough',
+    );
   }, 60_000);
 });
