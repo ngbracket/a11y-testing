@@ -70,7 +70,9 @@ image-alt (critical): Images must have alternative text
       Element has no title attribute
       Element's default semantics were not overridden with role="none" or role="presentation"
 
-Not checked: color-contrast (jsdom has no layout to compute colours from); page-level rules (bypass, document-title, html-has-lang, html-lang-valid, html-xml-lang-mismatch, landmark-one-main, meta-refresh, meta-viewport, page-has-heading-one, region apply to a whole page).
+Not checked:
+  color-contrast: jsdom has no layout to compute colours from
+  bypass, document-title, html-has-lang, html-lang-valid, html-xml-lang-mismatch, landmark-one-main, meta-refresh, meta-viewport, page-has-heading-one, region: page-level, runs only when you check the whole document
 ```
 
 The component named is the nearest one your app owns. Components whose class name
@@ -86,8 +88,8 @@ Some rules are off by default:
 | `color-contrast` | jsdom and happy-dom have no layout, so axe can't compute colours. Run in Vitest browser mode to include it. |
 | Page-level rules (`document-title`, `html-has-lang`, `landmark-one-main`, `region`, `bypass` and others) | A component on its own has no `<title>`, `lang` or `<main>`. They run when you pass `document`. |
 
-`result.skipped` lists what was turned off, and the failure text repeats it. Other
-options:
+`result.skipped` lists what was turned off, and the failure text repeats it. A rule
+you name in `rules` or `runOnly` runs even if it's on this list. Other options:
 
 ```ts
 await checkA11y(fixture, {
@@ -97,7 +99,8 @@ await checkA11y(fixture, {
 });
 ```
 
-axe allows one run at a time, so parallel calls are queued. `result.incomplete`
+axe allows one run at a time, so parallel calls are queued. Documents inside
+iframes aren't supported. `result.incomplete`
 holds the checks axe couldn't decide, to look at by hand.
 
 axe checks roughly a third of WCAG success criteria. No violations means axe found

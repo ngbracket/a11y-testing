@@ -51,7 +51,7 @@ export interface A11yCheckResult {
   violations: A11yViolation[];
   /** Rules axe couldn't decide on these elements; check them by hand. */
   incomplete: A11yViolation[];
-  /** Rules turned off for this run, with the reason, such as `color-contrast`. */
+  /** Rules this package turned off for the run, one entry per rule, with the reason. */
   skipped: { id: string; reason: string }[];
 }
 
@@ -100,18 +100,25 @@ export async function checkA11y(
     root = target;
   }
 
+  // Rules a user names in `rules` or `runOnly` are theirs to decide, so they stay on.
+  const named = new Set([...Object.keys(options.rules ?? {}), ...runOnlyNames(options.runOnly)]);
   const skipped: A11yCheckResult['skipped'] = [];
-  const rules: axe.RuleObject = {};
-  if (hasNoLayout()) {
-    rules['color-contrast'] = { enabled: false };
-    skipped.push({ id: 'color-contrast', reason: 'jsdom has no layout to compute colours from' });
+  if (hasNoLayout()) skipped.push({ id: 'color-contrast', reason: NO_LAYOUT });
+  // nodeType, not instanceof: a Document from another realm fails instanceof.
+  if (root.nodeType !== Node.DOCUMENT_NODE) {
+    for (const id of PAGE_RULES) skipped.push({ id, reason: PAGE_RULE });
   }
-  if (!(root instanceof Document)) {
-    for (const id of PAGE_RULES) rules[id] = { enabled: false };
-    skipped.push({ id: 'page-level rules', reason: `${PAGE_RULES.join(', ')} apply to a whole page` });
-  }
+  const off = skipped.filter((s) => !named.has(s.id));
+  const rules: axe.RuleObject = Object.fromEntries(off.map((s) => [s.id, { enabled: false }]));
   Object.assign(rules, options.rules);
 
+  for (const selector of options.exclude ?? []) {
+    try {
+      document.querySelector(selector);
+    } catch {
+      throw new Error(`checkA11y: the exclude selector "${selector}" isn't a valid CSS selector.`);
+    }
+  }
   const context: axe.ElementContext = options.exclude?.length
     ? { include: root, exclude: [...options.exclude] }
     : root;
@@ -149,8 +156,19 @@ export async function checkA11y(
   return {
     violations: results.violations.map(convert),
     incomplete: results.incomplete.map(convert),
-    skipped: skipped.filter((s) => !(s.id in (options.rules ?? {}))),
+    skipped: off,
   };
+}
+
+const NO_LAYOUT = 'jsdom has no layout to compute colours from';
+const PAGE_RULE = 'page-level, runs only when you check the whole document';
+
+/** The rule ids or tags a `runOnly` option names. */
+function runOnlyNames(runOnly: CheckA11yOptions['runOnly']): string[] {
+  if (!runOnly) return [];
+  if (typeof runOnly === 'string') return [runOnly];
+  if (Array.isArray(runOnly)) return [...runOnly];
+  return [...runOnly.values];
 }
 
 function truncate(text: string, max: number): string {
@@ -164,7 +182,7 @@ function truncate(text: string, max: number): string {
  *
  * ```text
  * image-alt (critical): Images must have alternative text
- *   https://dequeuniversity.com/rules/axe/4.11/image-alt
+ *   https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI
  *   - in ProductCard: <img src="shoe.png">
  *     Fix any of the following:
  *       Element does not have an alt attribute
@@ -187,8 +205,11 @@ export function formatViolations(result: A11yCheckResult): string {
     }
     return lines.join('\n');
   });
-  const skipped = result.skipped.length
-    ? `\n\nNot checked: ${result.skipped.map((s) => `${s.id} (${s.reason})`).join('; ')}.`
+  // One line per reason: "page-level rules" would otherwise list ten rules on ten lines.
+  const byReason = new Map<string, string[]>();
+  for (const s of result.skipped) byReason.set(s.reason, [...(byReason.get(s.reason) ?? []), s.id]);
+  const skipped = byReason.size
+    ? `\n\nNot checked:\n${[...byReason].map(([reason, ids]) => `  ${ids.join(', ')}: ${reason}`).join('\n')}`
     : '';
   return `${header}\n\n${blocks.join('\n\n')}${skipped}`;
 }
