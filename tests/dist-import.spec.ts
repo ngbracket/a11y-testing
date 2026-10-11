@@ -16,7 +16,7 @@ describe('built package', () => {
       .toString()
       .trim();
     expect(out).toBe(
-      'activeDescendant,captureAnnouncements,checkFocusTrapped,describeElement,describeElements,expectFocusReturn,expectFocusTrapped,formatDescription,isFocusSentinel,isHidden,isTabbable,press,recordAnnouncements,settle,shiftTab,stubLayout,tab,tabOrder,tabWalkthrough',
+      'DEFAULT_FRAMEWORK_PREFIXES,activeDescendant,captureAnnouncements,checkA11y,checkFocusTrapped,componentPath,describeElement,describeElements,expectFocusReturn,expectFocusTrapped,expectNoAxeViolations,formatDescription,formatViolations,isFocusSentinel,isHidden,isTabbable,owningComponent,press,recordAnnouncements,settle,shiftTab,stubLayout,tab,tabOrder,tabWalkthrough',
     );
   }, 60_000);
 });

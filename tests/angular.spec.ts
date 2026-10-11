@@ -16,6 +16,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import '../src/vitest';
 import {
   captureAnnouncements,
+  checkA11y,
   checkFocusTrapped,
   expectFocusReturn,
   expectFocusTrapped,
@@ -103,7 +104,40 @@ const AnnouncerHost = Component({
   },
 );
 
+// A stand-in for a UI-library primitive: its class name starts with "Mat".
+const MatIconButton = Component({
+  selector: 'test-icon-button',
+  template: `<button type="button"><svg aria-hidden="true"></svg></button>`,
+})(class MatIconButton {});
+
+const ProductCard = Component({
+  selector: 'test-product-card',
+  imports: [MatIconButton],
+  template: `<img src="shoe.png" /><test-icon-button />`,
+})(class ProductCard {});
+
+const ProductPage = Component({
+  selector: 'test-product-page',
+  imports: [ProductCard],
+  template: `<h2>Shoes</h2><test-product-card />`,
+})(class ProductPage {});
+
 describe('with Angular and the CDK', () => {
+  it('checkA11y names the component behind each violation, walking past UI primitives', async () => {
+    const fixture = TestBed.createComponent(ProductPage);
+    const result = await checkA11y(fixture);
+
+    const byRule = Object.fromEntries(result.violations.map((v) => [v.id, v.nodes[0]]));
+    expect(byRule['image-alt'].component).toBe('ProductCard');
+    expect(byRule['image-alt'].componentPath).toEqual(['ProductCard', 'ProductPage']);
+    // The nameless button sits inside MatIconButton, but the fix belongs in ProductCard.
+    expect(byRule['button-name'].componentPath).toEqual(['MatIconButton', 'ProductCard', 'ProductPage']);
+    expect(byRule['button-name'].component).toBe('ProductCard');
+
+    const libraryView = await checkA11y(fixture, { frameworkPrefixes: [] });
+    expect(libraryView.violations.find((v) => v.id === 'button-name')!.nodes[0].component).toBe('MatIconButton');
+  });
+
   it('press(Enter) clicks a native button and settles a zoneless fixture', async () => {
     const fixture = TestBed.createComponent(Counter);
     await settle(fixture);

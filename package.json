@@ -1,7 +1,7 @@
 {
   "name": "@ngbracket/a11y-testing",
-  "version": "0.2.0",
-  "description": "Accessibility helpers for Angular component tests in Vitest and TestBed: key presses that do what the browser does, real Tab order, focus return and focus trap checks, computed names, tab-order snapshots, and live-region announcements.",
+  "version": "0.3.0",
+  "description": "Accessibility helpers for Angular component tests in Vitest and TestBed: axe checks that name the owning component, key presses that do what the browser does, real Tab order, focus return and focus trap checks, computed names, tab-order snapshots, and live-region announcements.",
   "license": "MIT",
   "author": "Duncan Faulkner",
   "contributors": [
@@ -24,7 +24,9 @@
     "keyboard",
     "focus",
     "focus-trap",
-    "accessible-name"
+    "accessible-name",
+    "axe",
+    "axe-core"
   ],
   "type": "module",
   "main": "dist/index.js",

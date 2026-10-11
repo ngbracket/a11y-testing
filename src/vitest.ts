@@ -8,6 +8,7 @@
  */
 import { expect } from 'vitest';
 import type { AnnouncementRecorder } from './announcements.js';
+import { formatViolations, type A11yCheckResult } from './check.js';
 import { checkFocusTrapped, type FocusCheckOptions } from './focus.js';
 
 type Announced = AnnouncementRecorder | readonly string[];
@@ -41,6 +42,20 @@ expect.extend({
     };
   },
 
+  toHaveNoAxeViolations(received: A11yCheckResult) {
+    if (!received || !Array.isArray((received as A11yCheckResult).violations)) {
+      return {
+        pass: false,
+        message: () => 'toHaveNoAxeViolations expects the result of `await checkA11y(fixture)`.',
+      };
+    }
+    const pass = received.violations.length === 0;
+    return {
+      pass,
+      message: () => (pass ? 'Expected axe violations, but there were none.' : formatViolations(received)),
+    };
+  },
+
   async toBeFocusTrapped(received: Element, options?: FocusCheckOptions) {
     const result = await checkFocusTrapped(received, options);
     return {
@@ -56,6 +71,8 @@ interface A11yMatchers<R = unknown> {
    * (a string matches a whole message), or matching it (a RegExp).
    */
   toHaveAnnounced(expected: string | RegExp): R;
+  /** The result of `await checkA11y(...)` has no violations. Failures list each one with its component. */
+  toHaveNoAxeViolations(): R;
   /** Tab and Shift+Tab stay inside this element and reach every stop. Await it. */
   toBeFocusTrapped(options?: FocusCheckOptions): Promise<R>;
 }
