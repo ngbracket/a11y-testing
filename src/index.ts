@@ -3,6 +3,7 @@ export {
   type Announcement,
   type AnnouncementRecorder,
   type RecordOptions,
+  type WaitForOptions,
 } from './announcements.js';
 export { captureAnnouncements, type CaptureOptions } from './capture.js';
 export { settle, type AngularFixtureLike } from './fixture.js';

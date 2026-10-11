@@ -309,15 +309,18 @@ it after each step:
 
 ```ts
 let announcements: AnnouncementRecorder;
-beforeEach(() => (announcements = recordAnnouncements(document, { quietMs: 100 })));
+beforeEach(() => (announcements = recordAnnouncements(document)));
 afterEach(() => announcements.stop());
 
 it('announces the drop', async () => {
   await press(card, 'Enter', { fixture });
+  await announcements.waitFor('Dropped Card A in Done, position 1.', { politeness: 'assertive' });
+});
+
+it("doesn't announce a cancel", async () => {
+  await press(card, 'Enter', { fixture });
   await announcements.whenQuiet();
-  expect(announcements).toHaveAnnounced('Dropped Card A in Done, position 1.', {
-    politeness: 'assertive',
-  });
+  expect(announcements).not.toHaveAnnounced(/cancelled/);
 });
 ```
 
@@ -328,11 +331,19 @@ any `role="status"` or `role="alert"` element.
   politeness: `assertive` for `aria-live="assertive"` or `role="alert"`, otherwise
   `polite`, read when the text is written. Pass `{ politeness }` to
   `toHaveAnnounced()` to check it.
-- `whenQuiet()` resolves once no live region has changed for `quietMs`. Announcers
-  usually write their text on a timer, so wait before you read. Set `quietMs` just
-  above your announcer's delay: 150 for the CDK `LiveAnnouncer` (100 ms), 75 for one
-  with a 50 ms delay. The default is 100; leave some margin, since a slow CI machine
-  can run the announcer's timer late. If regions keep changing, it stops waiting
+- `waitFor(expected, options?)` resolves with the first message equal to `expected`
+  (a string matches a whole message) or matching it (a RegExp), as soon as it's
+  written. Messages recorded before the call count too, back to the last `clear()`.
+  Both options are optional: `{ politeness }` accepts only that politeness, and if
+  no message matches within `timeoutMs` (default 1000), it rejects and lists what
+  was announced, so the `await` is the assertion. It uses real timers and throws under fake timers.
+- `whenQuiet()` resolves once no live region has changed for `quietMs`. Use it to
+  check that something was not announced, or before `clear()` when you don't know
+  the last message. Announcers usually write their text on a timer, so set
+  `quietMs` with margin above your announcer's delay: 150 for the CDK
+  `LiveAnnouncer` (100 ms), and the default of 100 for one with a 50 ms delay. A slow
+  CI machine can run the announcer's timer late, and a `whenQuiet()` that returns
+  too early lets a negative check pass. If regions keep changing, it stops waiting
   after 2 seconds (the second argument changes that). It uses real timers and throws
   under fake timers; there, advance the timers and read `messages` directly.
 - `clear()` drops what was recorded so far.
@@ -343,8 +354,16 @@ any `role="status"` or `role="alert"` element.
 
 This reads the live region, so it only sees what reached the page. A spy on your
 announcer's `announce()` sees every call, including a message that a second call
-replaced before it was written. The cost is the wait: each `whenQuiet()` takes at
-least `quietMs`.
+replaced before it was written. The cost is the wait. `waitFor()` waits only as
+long as your announcer takes to write, while each `whenQuiet()` takes at least
+`quietMs`, so prefer `waitFor()` wherever you know the text. To drop setup
+messages, wait for the setup's last message, then `clear()`:
+
+```ts
+await press(card, ' ', { fixture });
+await announcements.waitFor(/^Grabbed /);
+announcements.clear();
+```
 
 ## How it compares
 
