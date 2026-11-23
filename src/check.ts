@@ -205,7 +205,7 @@ export function formatViolations(result: A11yCheckResult): string {
     const lines = [
       `${v.id} (${v.impact ?? 'unknown impact'}): ${v.help}`,
       `  ${v.helpUrl}`,
-      ...v.wcag.map((c) => `  WCAG ${c.id} ${c.name}: ${c.reference}`),
+      ...(v.wcag ?? []).map((c) => `  WCAG ${c.id} ${c.name}: ${c.reference}`),
     ];
     for (const node of v.nodes) {
       const where = node.component ? `in ${node.component}: ` : '';

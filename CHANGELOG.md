@@ -16,3 +16,9 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   link, such as
   `WCAG 1.1.1 Non-text Content: https://ngbracket.com/reference/wcag/non-text-content`.
   axe's own link is unchanged.
+
+### Changed
+
+- `A11yViolation` has a new required `wcag` field. Code that builds an
+  `A11yCheckResult` by hand, such as a test stub, needs `wcag: []` on each
+  violation. `formatViolations()` treats a missing `wcag` as empty.
