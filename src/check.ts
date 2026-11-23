@@ -6,6 +6,7 @@
 import axe from 'axe-core';
 import { componentPath, DEFAULT_FRAMEWORK_PREFIXES, owningComponent } from './attribution.js';
 import { settle, type AngularFixtureLike } from './fixture.js';
+import { criteriaForTags, type WcagCriterion } from './wcag.js';
 
 export interface CheckA11yOptions {
   /** Turn individual axe rules on or off: `{ 'image-alt': { enabled: false } }`. */
@@ -44,6 +45,11 @@ export interface A11yViolation {
   impact: axe.ImpactValue | null;
   help: string;
   helpUrl: string;
+  /**
+   * The WCAG 2.2 A and AA criteria the rule is tagged with, each with its page
+   * in the NgBracket accessibility reference. Empty for best-practice rules.
+   */
+  wcag: WcagCriterion[];
   nodes: A11yViolationNode[];
 }
 
@@ -139,6 +145,7 @@ export async function checkA11y(
     impact: result.impact ?? null,
     help: result.help,
     helpUrl: result.helpUrl,
+    wcag: criteriaForTags(result.tags),
     nodes: result.nodes.map((node) => {
       const element = node.element ?? null;
       const path = element ? componentPath(element) : [];
@@ -183,6 +190,7 @@ function truncate(text: string, max: number): string {
  * ```text
  * image-alt (critical): Images must have alternative text
  *   https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI
+ *   WCAG 1.1.1 Non-text Content: https://ngbracket.com/reference/wcag/non-text-content
  *   - in ProductCard: <img src="shoe.png">
  *     Fix any of the following:
  *       Element does not have an alt attribute
@@ -194,7 +202,11 @@ export function formatViolations(result: A11yCheckResult): string {
   const count = result.violations.reduce((sum, v) => sum + v.nodes.length, 0);
   const header = `${count} axe violation${count === 1 ? '' : 's'} in ${result.violations.length} rule${result.violations.length === 1 ? '' : 's'}:`;
   const blocks = result.violations.map((v) => {
-    const lines = [`${v.id} (${v.impact ?? 'unknown impact'}): ${v.help}`, `  ${v.helpUrl}`];
+    const lines = [
+      `${v.id} (${v.impact ?? 'unknown impact'}): ${v.help}`,
+      `  ${v.helpUrl}`,
+      ...(v.wcag ?? []).map((c) => `  WCAG ${c.id} ${c.name}: ${c.reference}`),
+    ];
     for (const node of v.nodes) {
       const where = node.component ? `in ${node.component}: ` : '';
       lines.push(`  - ${where}${truncate(node.html, 120)}`);

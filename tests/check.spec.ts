@@ -22,6 +22,9 @@ describe('checkA11y', () => {
     const img = result.violations.find((v) => v.id === 'image-alt')!;
     expect(img.impact).toBe('critical');
     expect(img.helpUrl).toMatch(/^https:\/\//);
+    expect(img.wcag).toEqual([
+      { id: '1.1.1', name: 'Non-text Content', reference: 'https://ngbracket.com/reference/wcag/non-text-content' },
+    ]);
     expect(img.nodes[0].element).toBe(host.querySelector('img'));
     expect(img.nodes[0].html).toBe('<img src="shoe.png">');
     expect(img.nodes[0].component).toBeNull(); // no Angular here
@@ -102,7 +105,7 @@ describe('formatViolations and the matcher', () => {
   it('lists each rule and element', async () => {
     const result = await checkA11y(render('<img src="shoe.png">'));
     const text = formatViolations(result);
-    expect(text).toMatch(/^1 axe violation in 1 rule:\n\nimage-alt \(critical\): Images must have alternative text\n {2}https:\/\/\S+\n {2}- <img src="shoe.png">\n {4}Fix any of the following:\n {6}Element does not have an alt attribute\n/);
+    expect(text).toMatch(/^1 axe violation in 1 rule:\n\nimage-alt \(critical\): Images must have alternative text\n {2}https:\/\/\S+\n {2}WCAG 1\.1\.1 Non-text Content: https:\/\/ngbracket\.com\/reference\/wcag\/non-text-content\n {2}- <img src="shoe.png">\n {4}Fix any of the following:\n {6}Element does not have an alt attribute\n/);
     expect(text).toMatch(
       /\n\nNot checked:\n {2}color-contrast: jsdom has no layout to compute colours from\n {2}bypass, document-title, .*, region: page-level, runs only when you check the whole document$/,
     );
@@ -114,5 +117,13 @@ describe('formatViolations and the matcher', () => {
     expect(() => expect(result).toHaveNoAxeViolations()).toThrow(/button-name \(critical\)/);
     await expect(expectNoAxeViolations(host)).rejects.toThrow(/1 axe violation in 1 rule/);
     expect(formatViolations({ violations: [], incomplete: [], skipped: [] })).toBe('No axe violations.');
+  });
+});
+
+describe('criteriaForTags', () => {
+  it('keeps A and AA criteria in document order and drops level, AAA and other tags', async () => {
+    const { criteriaForTags } = await import('../src/wcag');
+    const ids = criteriaForTags(['wcag2aa', 'wcag412', 'best-practice', 'wcag1410', 'wcag146', 'wcag111']).map((c) => c.id);
+    expect(ids).toEqual(['1.1.1', '1.4.10', '4.1.2']);
   });
 });
