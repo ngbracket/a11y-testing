@@ -35,3 +35,4 @@ export {
   type CheckA11yOptions,
 } from './check.js';
 export { componentPath, owningComponent, DEFAULT_FRAMEWORK_PREFIXES } from './attribution.js';
+export type { WcagCriterion } from './wcag.js';

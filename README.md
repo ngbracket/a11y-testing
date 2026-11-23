@@ -62,6 +62,7 @@ A failure lists each rule and element. For a `ProductCard` with an image and no
 
 image-alt (critical): Images must have alternative text
   https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI
+  WCAG 1.1.1 Non-text Content: https://ngbracket.com/reference/wcag/non-text-content
   - in ProductCard: <img src="shoe.png">
     Fix any of the following:
       Element does not have an alt attribute
